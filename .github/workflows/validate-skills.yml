@@ -1,0 +1,97 @@
+name: Validate Skills
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'skills/**'
+      - '.github/workflows/validate-skills.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'skills/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Run verification script
+        run: |
+          chmod +x scripts/verify.sh
+          bash scripts/verify.sh
+
+      - name: Validate YAML frontmatter (strict)
+        run: |
+          python <<'EOF'
+          import os
+          import sys
+          import yaml
+
+          skills_dir = "skills"
+          required_fields = ["name", "description"]
+          errors = []
+          count = 0
+
+          for skill_name in sorted(os.listdir(skills_dir)):
+              skill_path = os.path.join(skills_dir, skill_name)
+              if not os.path.isdir(skill_path):
+                  continue
+              skill_md = os.path.join(skill_path, "SKILL.md")
+              if not os.path.exists(skill_md):
+                  errors.append(f"❌ {skill_name}: SKILL.md missing")
+                  continue
+              with open(skill_md, "r", encoding="utf-8") as f:
+                  content = f.read()
+              if not content.startswith("---"):
+                  errors.append(f"❌ {skill_name}: no frontmatter")
+                  continue
+              parts = content.split("---", 2)
+              if len(parts) < 3:
+                  errors.append(f"❌ {skill_name}: malformed frontmatter")
+                  continue
+              try:
+                  meta = yaml.safe_load(parts[1])
+              except yaml.YAMLError as e:
+                  errors.append(f"❌ {skill_name}: YAML parse error — {e}")
+                  continue
+              for field in required_fields:
+                  if field not in meta:
+                      errors.append(f"❌ {skill_name}: missing required field '{field}'")
+              count += 1
+              print(f"✅ {skill_name}")
+
+          print(f"\n총 {count}개 skill 확인")
+          if errors:
+              print("\n오류:")
+              for e in errors:
+                  print(f"  {e}")
+              sys.exit(1)
+          if count != 20:
+              print(f"⚠ 경고: 기대 20개, 실제 {count}개")
+              sys.exit(1)
+          print("\n✅ 모든 skill 검증 통과")
+          EOF
+
+      - name: Check README links
+        run: |
+          # README에 언급된 모든 skill이 실제로 존재하는지 확인
+          for skill in $(grep -oE 'sermon-[a-z0-9-]+' README.md | sort -u); do
+            if [ ! -d "skills/$skill" ]; then
+              echo "❌ README 언급 '$skill' 디렉토리 없음"
+              exit 1
+            fi
+          done
+          echo "✅ README 링크 모두 유효"

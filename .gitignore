@@ -1,0 +1,36 @@
+# Distribution / packaging
+dist/
+*.zip
+*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Editors
+.vscode/
+.idea/
+*.sublime-*
+
+# Local config
+.env
+.env.local
+.claude.local/
+
+# Logs
+*.log
+
+# Temporary
+tmp/
+.cache/

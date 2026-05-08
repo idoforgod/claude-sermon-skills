@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          echo "RELEASE_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
+
+      - name: Verify all skills
+        run: |
+          chmod +x scripts/verify.sh
+          bash scripts/verify.sh
+
+      - name: Build distribution packages
+        run: |
+          chmod +x scripts/package.sh
+          bash scripts/package.sh
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          {
+            echo 'NOTES<<RELEASE_EOF'
+            echo "## claude-sermon-skills ${{ env.VERSION }}"
+            echo ""
+            echo "릴리스 일자: ${{ env.RELEASE_DATE }}"
+            echo ""
+            echo "### 다운로드"
+            echo ""
+            echo "- **claude-sermon-skills-${{ env.VERSION }}-all.zip** — 20개 skill 전체 묶음 (권장)"
+            echo "- **개별 skill ZIP** — 필요한 skill만 골라서 사용"
+            echo ""
+            echo "### 설치"
+            echo ""
+            echo '```bash'
+            echo "# 전체 설치"
+            echo "curl -L -O https://github.com/${{ github.repository }}/releases/download/${{ env.VERSION }}/claude-sermon-skills-${{ env.VERSION }}-all.zip"
+            echo "unzip claude-sermon-skills-${{ env.VERSION }}-all.zip"
+            echo "cd claude-sermon-skills-${{ env.VERSION }}"
+            echo "bash scripts/install.sh"
+            echo '```'
+            echo ""
+            echo "자세한 설치 방법은 [INSTALLATION.md](https://github.com/${{ github.repository }}/blob/${{ env.VERSION }}/docs/INSTALLATION.md)를 참고하세요."
+            echo ""
+            echo "### 변경 사항"
+            echo ""
+            echo "전체 변경 이력은 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ env.VERSION }}/CHANGELOG.md)를 참고하세요."
+            echo 'RELEASE_EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.VERSION }}
+          body: ${{ steps.notes.outputs.NOTES }}
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.zip
+            dist/checksums.txt
